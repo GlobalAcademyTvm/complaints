@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Complaint Register</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .hidden { display: none; }
+    .note-box { border: 1px solid #ccc; padding: 10px; margin-top: 10px; background: #f9f9f9; }
+    .logout { float: right; }
+    textarea { width: 100%; height: 100px; }
+    .note-time { font-size: 0.8em; color: gray; }
+    .readonly { background-color: #eee; }
+  </style>
+</head>
+<body>
+  <div id="loginBox">
+    <h2>Staff Login</h2>
+    <input id="userId" placeholder="User ID" /><br/><br/>
+    <input id="password" type="password" placeholder="Password" /><br/><br/>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="mainBox" class="hidden">
+    <h2>Complaint Register <button class="logout" onclick="logout()">Logout</button></h2>
+    <p>Welcome: <span id="loggedUser"></span></p>
+
+    <div id="adminPanel" class="hidden">
+      <h3>Admin Panel - Manage Staff</h3>
+      <input id="newUser" placeholder="New Staff Username" />
+      <input id="newPass" type="password" placeholder="Password" />
+      <button onclick="addStaff()">Create Staff</button><br/><br/>
+      <select id="deleteUserDropdown"></select>
+      <button onclick="deleteStaff()">Delete Selected Staff</button>
+    </div>
+
+    <div id="noteSection" class="hidden">
+      <h3>Create Complaint</h3>
+      <select id="notePriority">
+        <option value="none">Select Priority</option>
+        <option value="most-urgent">Most Urgently</option>
+        <option value="urgent">Urgent</option>
+        <option value="normal">Normal</option>
+        <option value="others">Others</option>
+      </select><br/><br/>
+      <textarea id="noteInput" placeholder="Enter your complaint..."></textarea><br/>
+      <button onclick="submitNote()">Submit</button>
+    </div>
+
+    <div id="hariForward" class="hidden">
+      <h3>Forward Note to Admin</h3>
+      <textarea id="hariNoteInput" placeholder="Enter your additional note..."></textarea><br/>
+      <button onclick="forwardFromHari()">Forward to Admin</button>
+    </div>
+
+    <h3>Notes History</h3>
+    <label for="searchDate"><b>Filter by Date:</b></label>
+    <input id="searchDate" type="date" onchange="renderNotes()" />
+    <div id="notesContainer"></div>
+
+    <div id="adminOptions" class="hidden">
+      <br/>
+      <button onclick="exportPDF()">Export Complaint Report (PDF)</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const defaultUsers = {
+      Admin: "Global@123",
+      Hari: "Global@8882",
+      HR: "Global@8882"
+    };
+
+    let users = JSON.parse(localStorage.getItem("users") || JSON.stringify(defaultUsers));
+    let allNotes = JSON.parse(localStorage.getItem("complaints") || "[]");
+    let currentUser = null;
+
+    function saveUsers() {
+      localStorage.setItem("users", JSON.stringify(users));
+    }
+
+    function saveNotes() {
+      localStorage.setItem("complaints", JSON.stringify(allNotes));
+    }
+
+    function login() {
+      const uid = document.getElementById("userId").value;
+      const pass = document.getElementById("password").value;
+      if (users[uid] === pass) {
+        currentUser = uid;
+        document.getElementById("loggedUser").textContent = currentUser;
+        document.getElementById("loginBox").classList.add("hidden");
+        document.getElementById("mainBox").classList.remove("hidden");
+
+        if (uid === "Admin") {
+          document.getElementById("adminPanel").classList.remove("hidden");
+          document.getElementById("noteSection").classList.remove("hidden");
+          document.getElementById("adminOptions").classList.remove("hidden");
+        } else if (uid === "Hari") {
+          document.getElementById("hariForward").classList.remove("hidden");
+        } else if (uid !== "HR") {
+          document.getElementById("noteSection").classList.remove("hidden");
+        }
+
+        populateDeleteDropdown();
+        renderNotes();
+      } else {
+        alert("Invalid credentials.");
+      }
+    }
+
+    function logout() {
+      location.reload();
+    }
+
+    function addStaff() {
+      const uname = document.getElementById("newUser").value.trim();
+      const upass = document.getElementById("newPass").value.trim();
+      if (!uname || !upass) return alert("Please enter username and password.");
+      if (users[uname]) return alert("User already exists.");
+      users[uname] = upass;
+      saveUsers();
+      alert("Staff profile created.");
+      populateDeleteDropdown();
+    }
+
+    function deleteStaff() {
+      const selectedUser = document.getElementById("deleteUserDropdown").value;
+      if (!selectedUser || selectedUser === "Admin") return alert("Cannot delete this user.");
+      if (!confirm(`Are you sure you want to delete ${selectedUser}?`)) return;
+      delete users[selectedUser];
+      saveUsers();
+      alert("Staff deleted.");
+      populateDeleteDropdown();
+    }
+
+    function populateDeleteDropdown() {
+      const deleteDropdown = document.getElementById("deleteUserDropdown");
+      deleteDropdown.innerHTML = "";
+      Object.keys(users).forEach(user => {
+        if (user !== "Admin" && user !== "HR" && user !== "Hari") {
+          const opt = document.createElement("option");
+          opt.value = user;
+          opt.textContent = user;
+          deleteDropdown.appendChild(opt);
+        }
+      });
+    }
+
+    function getCurrentTime() {
+      return new Date().toLocaleString('en-GB', { hour12: true });
+    }
+
+    function submitNote() {
+      const text = document.getElementById("noteInput").value.trim();
+      const priority = document.getElementById("notePriority").value;
+      if (!text || priority === "none") return alert("Enter note and select priority.");
+      const note = {
+        from: currentUser,
+        to: ["HR", "Hari"],
+        content: text,
+        timestamp: getCurrentTime(),
+        date: new Date().toISOString().split("T")[0],
+        holder: "Hari",
+        forwardedFromHari: false,
+        priority: priority
+      };
+      allNotes.push(note);
+      saveNotes();
+      document.getElementById("noteInput").value = "";
+      renderNotes();
+    }
+
+    function forwardFromHari() {
+      const lastNote = allNotes.reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
+      if (!lastNote) return alert("No note to forward.");
+      const extra = document.getElementById("hariNoteInput").value.trim();
+      if (!extra) return alert("Enter a reply note.");
+      lastNote.forwardedFromHari = true;
+      lastNote.holder = "Admin";
+      lastNote.response = {
+        from: "Hari",
+        content: extra,
+        timestamp: getCurrentTime()
+      };
+      saveNotes();
+      document.getElementById("hariNoteInput").value = "";
+      renderNotes();
+      alert("Forwarded to Admin.");
+    }
+
+    function getPriorityColor(priority) {
+      switch (priority) {
+        case "most-urgent": return "#f8d7da";
+        case "urgent": return "#fff3cd";
+        case "normal": return "#d4edda";
+        default: return "#f9f9f9";
+      }
+    }
+
+    function renderNotes() {
+      const container = document.getElementById("notesContainer");
+      container.innerHTML = "";
+      const filterDate = document.getElementById("searchDate").value;
+      const notesToShow = allNotes.filter(n =>
+        n.to.includes(currentUser) || n.from === currentUser || currentUser === "Admin"
+      ).filter(n => !filterDate || n.date === filterDate);
+
+      notesToShow.forEach(note => {
+        const div = document.createElement("div");
+        div.className = "note-box";
+        div.style.backgroundColor = getPriorityColor(note.priority);
+        div.innerHTML = `
+          <b>From:</b> ${note.from}<br/>
+          <b>To:</b> ${note.to.join(", ")}<br/>
+          <b>Priority:</b> ${note.priority}<br/>
+          <b>Note:</b> ${note.content}<br/>
+          ${note.response ? `<b>Response from Hari:</b> ${note.response.content}<br/><i>${note.response.timestamp}</i><br/>` : ''}
+          <span class="note-time">${note.timestamp}</span><br/>
+          <b>Current Holder:</b> ${note.holder}
+        `;
+
+        if (currentUser === "Admin") {
+          const fwdSelect = document.createElement("select");
+          Object.keys(users).forEach(user => {
+            if (user !== "Admin") {
+              const opt = document.createElement("option");
+              opt.value = user;
+              opt.textContent = `Forward to ${user}`;
+              fwdSelect.appendChild(opt);
+            }
+          });
+
+          const fwdBtn = document.createElement("button");
+          fwdBtn.textContent = "Forward";
+          fwdBtn.onclick = () => {
+            note.to.push(fwdSelect.value);
+            note.holder = fwdSelect.value;
+            saveNotes();
+            renderNotes();
+            alert("Note forwarded.");
+          };
+
+          div.appendChild(document.createElement("br"));
+          div.appendChild(fwdSelect);
+          div.appendChild(fwdBtn);
+        }
+
+        container.appendChild(div);
+      });
+    }
+
+    async function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const pageHeight = doc.internal.pageSize.height;
+      let y = 10;
+
+      doc.setFontSize(14);
+      doc.text("Complaint Report", 10, y);
+      y += 10;
+      doc.setFontSize(11);
+
+      allNotes.forEach((note, idx) => {
+        const lines = [
+          `${idx + 1}. From: ${note.from}, To: ${note.to.join(", ")}`,
+          `Priority: ${note.priority}`,
+          `Note: ${note.content}`,
+          note.response ? `Hari's Response: ${note.response.content}` : "",
+          `Time: ${note.timestamp}, Holder: ${note.holder}`
+        ].filter(line => line !== "");
+
+        lines.forEach(line => {
+          if (y > pageHeight - 20) {
+            doc.addPage();
+            y = 10;
+          }
+          doc.text(line, 10, y);
+          y += 7;
+        });
+
+        y += 3;
+      });
+
+      doc.save("complaints-report.pdf");
+    }
+  </script>
+</body>
+</html>
