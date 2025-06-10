@@ -157,25 +157,25 @@
     }
 
     function submitNote() {
-      const text = document.getElementById("noteInput").value.trim();
-      const priority = document.getElementById("notePriority").value;
-      if (!text || priority === "none") return alert("Enter note and select priority.");
-      const note = {
-        from: currentUser,
-        to: ["HR", "Hari"],
-        content: text,
-        timestamp: getCurrentTime(),
-        date: new Date().toISOString().split("T")[0],
-        holder: "Hari",
-        forwardedFromHari: false,
-        priority: priority,
-        adminEdits: []
-      };
-      allNotes.push(note);
-      saveNotes();
-      document.getElementById("noteInput").value = "";
-      renderNotes();
-    }
+  const text = document.getElementById("noteInput").value.trim();
+  const priority = document.getElementById("notePriority").value;
+  if (!text || priority === "none") return alert("Enter note and select priority.");
+  const note = {
+    from: currentUser,
+    to: ["HR", "Hari", "Admin"],  // Updated
+    content: text,
+    timestamp: getCurrentTime(),
+    date: new Date().toISOString().split("T")[0],
+    holder: "Hari",
+    forwardedFromHari: false,
+    priority: priority,
+    adminEdits: []
+  };
+  allNotes.push(note);
+  saveNotes();
+  document.getElementById("noteInput").value = "";
+  renderNotes();
+}
 
     function forwardFromHari() {
       const lastNote = allNotes.reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
@@ -209,8 +209,11 @@
       container.innerHTML = "";
       const filterDate = document.getElementById("searchDate").value;
       const notesToShow = allNotes.filter(n =>
-        n.to.includes(currentUser) || n.from === currentUser || currentUser === "Admin"
-      ).filter(n => !filterDate || n.date === filterDate);
+  n.to.includes(currentUser) ||
+  n.from === currentUser ||
+  n.holder === currentUser ||
+  (currentUser === "Admin")
+).filter(n => !filterDate || n.date === filterDate);
 
       notesToShow.forEach(note => {
         const div = document.createElement("div");
