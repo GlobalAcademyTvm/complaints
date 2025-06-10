@@ -153,6 +153,23 @@
       return new Date().toLocaleString('en-GB', { hour12: true });
     }
 
+    function formatDateTime() {
+      const now = new Date();
+      return `${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB')}`;
+    }
+
+    function highlightDiff(oldText, newText) {
+      let result = '';
+      for (let i = 0; i < newText.length; i++) {
+        if (newText[i] !== oldText[i]) {
+          result += `<span class="highlighted">${newText[i]}</span>`;
+        } else {
+          result += newText[i];
+        }
+      }
+      return result;
+    }
+
     function submitNote() {
       const text = document.getElementById("noteInput").value.trim();
       const priority = document.getElementById("notePriority").value;
@@ -189,18 +206,6 @@
       document.getElementById("hariNoteInput").value = "";
       renderNotes();
       alert("Forwarded to Admin.");
-    }
-
-    function highlightDiff(oldText, newText) {
-      let result = '';
-      for (let i = 0; i < newText.length; i++) {
-        if (newText[i] !== oldText[i]) {
-          result += `<span class="highlighted">${newText[i]}</span>`;
-        } else {
-          result += newText[i];
-        }
-      }
-      return result;
     }
 
     function renderNotes() {
@@ -244,7 +249,10 @@
               editBtn.textContent = "Save";
             } else {
               const newText = textarea.value.trim();
-              note.content = highlightDiff(note.content.replace(/<[^>]+>/g, ""), newText);
+              const oldText = note.content.replace(/<[^>]+>/g, "");
+              const highlighted = highlightDiff(oldText, newText);
+              const log = `<br/><i>(Admin: ${newText}, ${formatDateTime()})</i>`;
+              note.content = `${highlighted}${log}`;
               note.timestamp = getCurrentTime();
               saveNotes();
               renderNotes();
