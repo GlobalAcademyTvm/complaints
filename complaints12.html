@@ -228,12 +228,12 @@
           ${note.response ? `<b>Response from Hari:</b> ${note.response.content}<br/><i>${note.response.timestamp}</i><br/>` : ''}
           <span class="note-time">${note.timestamp}</span><br/>
           <b>Current Holder:</b> ${note.holder}
-          ${note.adminEdits ? note.adminEdits.map((e, idx) => `
+          ${note.adminEdits.map((e, idx) => `
             <br/><br/>
             <span style="color: ${idx === 0 ? 'green' : 'red'};">
               <b>Admin:</b> ${e.content} (${e.time})
             </span>
-          `).join("") : ""}
+          `).join("")}
         `;
 
         if (currentUser === "Admin") {
@@ -242,23 +242,16 @@
           editBtn.onclick = () => {
             const editText = prompt("Enter your edited note:");
             if (!editText) return;
-            const now = new Date();
-            const timestamp = now.toLocaleString('en-GB', {
+            const timestamp = new Date().toLocaleString('en-GB', {
               hour12: false,
               day: '2-digit',
-              month: '2-digit'
+              month: '2-digit',
               year: 'numeric',
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit'
             });
-
-            if (!note.adminEdits) note.adminEdits = [];
-            note.adminEdits.push({
-              content: editText,
-              time: timestamp
-            });
-
+            note.adminEdits.push({ content: editText, time: timestamp });
             saveNotes();
             renderNotes();
           };
