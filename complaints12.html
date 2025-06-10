@@ -152,23 +152,6 @@
       return new Date().toLocaleString('en-GB', { hour12: true });
     }
 
-    function formatDateTime() {
-      const now = new Date();
-      return `${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB')}`;
-    }
-
-    function highlightDiffWithColor(oldText, newText, color) {
-      let result = '';
-      for (let i = 0; i < newText.length; i++) {
-        if (newText[i] !== oldText[i]) {
-          result += `<span style="background-color:${color}">${newText[i]}</span>`;
-        } else {
-          result += newText[i];
-        }
-      }
-      return result;
-    }
-
     function submitNote() {
       const text = document.getElementById("noteInput").value.trim();
       const priority = document.getElementById("notePriority").value;
@@ -182,7 +165,7 @@
         holder: "Hari",
         forwardedFromHari: false,
         priority: priority,
-        edits: []
+        adminEdits: []
       };
       allNotes.push(note);
       saveNotes();
@@ -191,7 +174,7 @@
     }
 
     function forwardFromHari() {
-      const lastNote = allNotes.slice().reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
+      const lastNote = allNotes.reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
       if (!lastNote) return alert("No note to forward.");
       const extra = document.getElementById("hariNoteInput").value.trim();
       if (!extra) return alert("Enter a reply note.");
@@ -208,6 +191,15 @@
       alert("Forwarded to Admin.");
     }
 
+    function getPriorityColor(priority) {
+      switch (priority) {
+        case "most-urgent": return "#f8d7da";
+        case "urgent": return "#fff3cd";
+        case "normal": return "#d4edda";
+        default: return "#f9f9f9";
+      }
+    }
+
     function renderNotes() {
       const container = document.getElementById("notesContainer");
       container.innerHTML = "";
@@ -216,52 +208,55 @@
         n.to.includes(currentUser) || n.from === currentUser || currentUser === "Admin"
       ).filter(n => !filterDate || n.date === filterDate);
 
-      notesToShow.forEach((note, index) => {
+      notesToShow.forEach(note => {
         const div = document.createElement("div");
         div.className = "note-box";
         div.style.backgroundColor = getPriorityColor(note.priority);
 
-        const contentBlock = document.createElement("div");
-        contentBlock.innerHTML = `
+        div.innerHTML = `
           <b>From:</b> ${note.from}<br/>
           <b>To:</b> ${note.to.join(", ")}<br/>
           <b>Priority:</b> ${note.priority}<br/>
-          <b>Note:</b> <div>${note.content}</div>
-          ${note.edits?.map(e => `<div>${e.formatted}</div>`).join("") || ""}
+          <b>Note:</b> ${note.content}<br/>
           ${note.response ? `<b>Response from Hari:</b> ${note.response.content}<br/><i>${note.response.timestamp}</i><br/>` : ''}
           <span class="note-time">${note.timestamp}</span><br/>
           <b>Current Holder:</b> ${note.holder}
+          ${note.adminEdits ? note.adminEdits.map((e, idx) => `
+            <br/><br/>
+            <span style="color: ${idx === 0 ? 'green' : 'red'};">
+              <b>Admin:</b> ${e.content} (${e.time})
+            </span>
+          `).join("") : ""}
         `;
-        div.appendChild(contentBlock);
 
         if (currentUser === "Admin") {
-          const textarea = document.createElement("textarea");
-          textarea.value = note.edits.length > 0 ? note.edits[note.edits.length - 1].raw : note.content;
-          textarea.readOnly = true;
-          textarea.classList.add("readonly");
-
           const editBtn = document.createElement("button");
-          editBtn.textContent = "Edit";
-
+          editBtn.textContent = "Edit Note";
           editBtn.onclick = () => {
-            if (textarea.readOnly) {
-              textarea.readOnly = false;
-              textarea.classList.remove("readonly");
-              editBtn.textContent = "Save";
-            } else {
-              const newText = textarea.value.trim();
-              const oldText = note.edits.length > 0 ? note.edits[note.edits.length - 1].raw : note.content;
-              const color = note.edits.length === 0 ? "#c6f6c6" : "#ffcccc";
-              const highlighted = highlightDiffWithColor(oldText, newText, color);
-              note.edits.push({
-                raw: newText,
-                formatted: `<i>(Admin: ${highlighted}, ${formatDateTime()})</i>`
-              });
-              note.timestamp = getCurrentTime();
-              saveNotes();
-              renderNotes();
-            }
+            const editText = prompt("Enter your edited note:");
+            if (!editText) return;
+            const now = new Date();
+            const timestamp = now.toLocaleString('en-GB', {
+              hour12: false,
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            });
+
+            if (!note.adminEdits) note.adminEdits = [];
+            note.adminEdits.push({
+              content: editText,
+              time: timestamp
+            });
+
+            saveNotes();
+            renderNotes();
           };
+          div.appendChild(document.createElement("br"));
+          div.appendChild(editBtn);
 
           const fwdSelect = document.createElement("select");
           Object.keys(users).forEach(user => {
@@ -283,8 +278,6 @@
             alert("Note forwarded.");
           };
 
-          div.appendChild(textarea);
-          div.appendChild(editBtn);
           div.appendChild(document.createElement("br"));
           div.appendChild(fwdSelect);
           div.appendChild(fwdBtn);
@@ -292,15 +285,6 @@
 
         container.appendChild(div);
       });
-    }
-
-    function getPriorityColor(priority) {
-      switch (priority) {
-        case "most-urgent": return "#f8d7da";
-        case "urgent": return "#fff3cd";
-        case "normal": return "#d4edda";
-        default: return "#f9f9f9";
-      }
     }
 
     async function exportPDF() {
@@ -318,10 +302,12 @@
         const lines = [
           `${idx + 1}. From: ${note.from}, To: ${note.to.join(", ")}`,
           `Priority: ${note.priority}`,
-          `Note: ${note.content.replace(/<[^>]+>/g, "")}`,
-          ...(note.edits?.map(e => `Edit: ${e.raw}`) || []),
+          `Note: ${note.content}`,
           note.response ? `Hari's Response: ${note.response.content}` : "",
-          `Time: ${note.timestamp}, Holder: ${note.holder}`
+          `Time: ${note.timestamp}, Holder: ${note.holder}`,
+          ...(note.adminEdits || []).map((edit, i) =>
+            `Admin Edit ${i + 1}: ${edit.content} (${edit.time})`
+          )
         ].filter(line => line !== "");
 
         lines.forEach(line => {
@@ -333,7 +319,7 @@
           y += 7;
         });
 
-        y += 3;
+        y += 5;
       });
 
       doc.save("complaints-report.pdf");
