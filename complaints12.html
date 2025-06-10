@@ -8,7 +8,18 @@
     .hidden { display: none; }
     .note-box { border: 1px solid #ccc; padding: 10px; margin-top: 10px; background: #f9f9f9; }
     .logout { float: right; }
-    textarea { width: 100%; height: 100px; }
+    textarea {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      font-size: 14px;
+      font-family: Arial;
+      border: 1px solid #aaa;
+    }
+    textarea::placeholder {
+      color: #999;
+      font-style: italic;
+    }
     .note-time { font-size: 0.8em; color: gray; }
     .readonly { background-color: #eee; }
   </style>
@@ -49,7 +60,7 @@
 
     <div id="hariForward" class="hidden">
       <h3>Forward Note to Admin</h3>
-      <textarea id="hariNoteInput" placeholder="Enter your additional note..."></textarea><br/>
+      <textarea id="hariNoteInput" placeholder="Forward note to Admin..."></textarea><br/>
       <button onclick="forwardFromHari()">Forward to Admin</button>
     </div>
 
@@ -157,28 +168,28 @@
     }
 
     function submitNote() {
-  const text = document.getElementById("noteInput").value.trim();
-  const priority = document.getElementById("notePriority").value;
-  if (!text || priority === "none") return alert("Enter note and select priority.");
-  const note = {
-    from: currentUser,
-    to: ["HR", "Hari", "Admin"],  // Updated
-    content: text,
-    timestamp: getCurrentTime(),
-    date: new Date().toISOString().split("T")[0],
-    holder: "Hari",
-    forwardedFromHari: false,
-    priority: priority,
-    adminEdits: []
-  };
-  allNotes.push(note);
-  saveNotes();
-  document.getElementById("noteInput").value = "";
-  renderNotes();
-}
+      const text = document.getElementById("noteInput").value.trim();
+      const priority = document.getElementById("notePriority").value;
+      if (!text || priority === "none") return alert("Enter note and select priority.");
+      const note = {
+        from: currentUser,
+        to: ["HR", "Hari", "Admin"],
+        content: text,
+        timestamp: getCurrentTime(),
+        date: new Date().toISOString().split("T")[0],
+        holder: "Hari",
+        forwardedFromHari: false,
+        priority: priority,
+        adminEdits: []
+      };
+      allNotes.push(note);
+      saveNotes();
+      document.getElementById("noteInput").value = "";
+      renderNotes();
+    }
 
     function forwardFromHari() {
-      const lastNote = allNotes.reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
+      const lastNote = allNotes.slice().reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
       if (!lastNote) return alert("No note to forward.");
       const extra = document.getElementById("hariNoteInput").value.trim();
       if (!extra) return alert("Enter a reply note.");
@@ -209,11 +220,11 @@
       container.innerHTML = "";
       const filterDate = document.getElementById("searchDate").value;
       const notesToShow = allNotes.filter(n =>
-  n.to.includes(currentUser) ||
-  n.from === currentUser ||
-  n.holder === currentUser ||
-  (currentUser === "Admin")
-).filter(n => !filterDate || n.date === filterDate);
+        n.to.includes(currentUser) ||
+        n.from === currentUser ||
+        n.holder === currentUser ||
+        currentUser === "Admin"
+      ).filter(n => !filterDate || n.date === filterDate);
 
       notesToShow.forEach(note => {
         const div = document.createElement("div");
@@ -228,12 +239,12 @@
           ${note.response ? `<b>Response from Hari:</b> ${note.response.content}<br/><i>${note.response.timestamp}</i><br/>` : ''}
           <span class="note-time">${note.timestamp}</span><br/>
           <b>Current Holder:</b> ${note.holder}
-          ${note.adminEdits ? note.adminEdits.map((e, idx) => `
+          ${note.adminEdits.map((e, idx) => `
             <br/><br/>
             <span style="color: ${idx === 0 ? 'green' : 'red'};">
               <b>Admin:</b> ${e.content} (${e.time})
             </span>
-          `).join("") : ""}
+          `).join("")}
         `;
 
         if (currentUser === "Admin") {
@@ -242,8 +253,7 @@
           editBtn.onclick = () => {
             const editText = prompt("Enter your edited note:");
             if (!editText) return;
-            const now = new Date();
-            const timestamp = now.toLocaleString('en-GB', {
+            const timestamp = new Date().toLocaleString('en-GB', {
               hour12: false,
               day: '2-digit',
               month: '2-digit',
@@ -252,13 +262,7 @@
               minute: '2-digit',
               second: '2-digit'
             });
-
-            if (!note.adminEdits) note.adminEdits = [];
-            note.adminEdits.push({
-              content: editText,
-              time: timestamp
-            });
-
+            note.adminEdits.push({ content: editText, time: timestamp });
             saveNotes();
             renderNotes();
           };
