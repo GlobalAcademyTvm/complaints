@@ -11,6 +11,7 @@
     textarea { width: 100%; height: 100px; }
     .note-time { font-size: 0.8em; color: gray; }
     .readonly { background-color: #eee; }
+    .highlighted { background-color: #c6f6c6; }
   </style>
 </head>
 <body>
@@ -173,7 +174,7 @@
     }
 
     function forwardFromHari() {
-      const lastNote = allNotes.reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
+      const lastNote = allNotes.slice().reverse().find(n => n.holder === "Hari" && !n.forwardedFromHari);
       if (!lastNote) return alert("No note to forward.");
       const extra = document.getElementById("hariNoteInput").value.trim();
       if (!extra) return alert("Enter a reply note.");
@@ -190,13 +191,16 @@
       alert("Forwarded to Admin.");
     }
 
-    function getPriorityColor(priority) {
-      switch (priority) {
-        case "most-urgent": return "#f8d7da";
-        case "urgent": return "#fff3cd";
-        case "normal": return "#d4edda";
-        default: return "#f9f9f9";
+    function highlightDiff(oldText, newText) {
+      let result = '';
+      for (let i = 0; i < newText.length; i++) {
+        if (newText[i] !== oldText[i]) {
+          result += `<span class="highlighted">${newText[i]}</span>`;
+        } else {
+          result += newText[i];
+        }
       }
+      return result;
     }
 
     function renderNotes() {
@@ -207,21 +211,46 @@
         n.to.includes(currentUser) || n.from === currentUser || currentUser === "Admin"
       ).filter(n => !filterDate || n.date === filterDate);
 
-      notesToShow.forEach(note => {
+      notesToShow.forEach((note, index) => {
         const div = document.createElement("div");
         div.className = "note-box";
         div.style.backgroundColor = getPriorityColor(note.priority);
-        div.innerHTML = `
+
+        const contentBlock = document.createElement("div");
+        contentBlock.innerHTML = `
           <b>From:</b> ${note.from}<br/>
           <b>To:</b> ${note.to.join(", ")}<br/>
           <b>Priority:</b> ${note.priority}<br/>
-          <b>Note:</b> ${note.content}<br/>
+          <b>Note:</b> <div>${note.content}</div>
           ${note.response ? `<b>Response from Hari:</b> ${note.response.content}<br/><i>${note.response.timestamp}</i><br/>` : ''}
           <span class="note-time">${note.timestamp}</span><br/>
           <b>Current Holder:</b> ${note.holder}
         `;
+        div.appendChild(contentBlock);
 
         if (currentUser === "Admin") {
+          const textarea = document.createElement("textarea");
+          textarea.value = note.content.replace(/<[^>]+>/g, "");
+          textarea.readOnly = true;
+          textarea.classList.add("readonly");
+
+          const editBtn = document.createElement("button");
+          editBtn.textContent = "Edit";
+
+          editBtn.onclick = () => {
+            if (textarea.readOnly) {
+              textarea.readOnly = false;
+              textarea.classList.remove("readonly");
+              editBtn.textContent = "Save";
+            } else {
+              const newText = textarea.value.trim();
+              note.content = highlightDiff(note.content.replace(/<[^>]+>/g, ""), newText);
+              note.timestamp = getCurrentTime();
+              saveNotes();
+              renderNotes();
+            }
+          };
+
           const fwdSelect = document.createElement("select");
           Object.keys(users).forEach(user => {
             if (user !== "Admin") {
@@ -242,6 +271,8 @@
             alert("Note forwarded.");
           };
 
+          div.appendChild(textarea);
+          div.appendChild(editBtn);
           div.appendChild(document.createElement("br"));
           div.appendChild(fwdSelect);
           div.appendChild(fwdBtn);
@@ -249,6 +280,15 @@
 
         container.appendChild(div);
       });
+    }
+
+    function getPriorityColor(priority) {
+      switch (priority) {
+        case "most-urgent": return "#f8d7da";
+        case "urgent": return "#fff3cd";
+        case "normal": return "#d4edda";
+        default: return "#f9f9f9";
+      }
     }
 
     async function exportPDF() {
@@ -266,7 +306,7 @@
         const lines = [
           `${idx + 1}. From: ${note.from}, To: ${note.to.join(", ")}`,
           `Priority: ${note.priority}`,
-          `Note: ${note.content}`,
+          `Note: ${note.content.replace(/<[^>]+>/g, "")}`,
           note.response ? `Hari's Response: ${note.response.content}` : "",
           `Time: ${note.timestamp}, Holder: ${note.holder}`
         ].filter(line => line !== "");
